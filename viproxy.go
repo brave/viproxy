@@ -34,14 +34,17 @@ func NewVIProxy(tuples []*Tuple) *VIProxy {
 }
 
 // Start starts the TCP proxy along with all given connection forwarding
-// tuples.  The function returns once all listeners are set up.
-func (p *VIProxy) Start() {
-	var wg sync.WaitGroup
-	wg.Add(len(p.tuples))
+// tuples.  The function returns once all listeners are set up.  The function
+// returns the first error that occurred (if any) while setting up the
+// listeners.
+func (p *VIProxy) Start() error {
+	var err error
 	for _, t := range p.tuples {
-		go handleTuple(t, &wg)
+		if err = handleTuple(t); err != nil {
+			return err
+		}
 	}
-	wg.Wait()
+	return nil
 }
 
 func dial(addr net.Addr) (net.Conn, error) {
@@ -78,32 +81,34 @@ func listen(addr net.Addr) (net.Listener, error) {
 	return ln, nil
 }
 
-func handleTuple(tuple *Tuple, wg *sync.WaitGroup) error {
+func handleTuple(tuple *Tuple) error {
 	ln, err := listen(tuple.InAddr)
 	if err != nil {
 		return err
 	}
-
-	wg.Done()
 	l.Printf("Listening for incoming connections on %s.", tuple.InAddr)
-	for {
-		inConn, err := ln.Accept()
-		if err != nil {
-			l.Printf("Failed to accept incoming connection: %s", err)
-			continue
-		}
-		l.Printf("Accepted incoming connection from %s.", inConn.RemoteAddr())
 
-		outConn, err := dial(tuple.OutAddr)
-		if err != nil {
-			l.Printf("Failed to establish forwarding connection: %s", err)
-			inConn.Close()
-			continue
-		}
+	go func() {
+		for {
+			inConn, err := ln.Accept()
+			if err != nil {
+				l.Printf("Failed to accept incoming connection: %s", err)
+				continue
+			}
+			l.Printf("Accepted incoming connection from %s.", inConn.RemoteAddr())
 
-		go forward(inConn, outConn)
-		l.Printf("Dispatched forwarders for %s <-> %s.", tuple.InAddr, tuple.OutAddr)
-	}
+			outConn, err := dial(tuple.OutAddr)
+			if err != nil {
+				l.Printf("Failed to establish forwarding connection: %s", err)
+				inConn.Close()
+				continue
+			}
+
+			go forward(inConn, outConn)
+			l.Printf("Dispatched forwarders for %s <-> %s.", tuple.InAddr, tuple.OutAddr)
+		}
+	}()
+	return nil
 }
 
 func forward(in, out net.Conn) {
