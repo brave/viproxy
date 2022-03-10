@@ -34,22 +34,33 @@ func parseAddr(rawAddr string) net.Addr {
 	if err != nil {
 		log.Fatal("Couldn't turn port into integer.")
 	}
+	addr = &vsock.Addr{ContextID: uint32(cid), Port: uint32(port)}
 
-	return &vsock.Addr{ContextID: uint32(cid), Port: uint32(port)}
+	return addr
 }
 
 func main() {
-	// E.g.: IN_ADDR=127.0.0.1:8080 OUT_ADDR=3:8080 go run main.go
-	rawInAddr, rawOutAddr := os.Getenv("IN_ADDR"), os.Getenv("OUT_ADDR")
-	if rawInAddr == "" || rawOutAddr == "" {
-		log.Fatal("Environment variables IN_ADDR and OUT_ADDR not set.")
+	// E.g.: IN_ADDRS=127.0.0.1:8080,127.0.0.1:8081 OUT_ADDRS=4:8080,4:8081 go run main.go
+	inEnv, outEnv := os.Getenv("IN_ADDRS"), os.Getenv("OUT_ADDRS")
+	if inEnv == "" || outEnv == "" {
+		log.Fatal("Environment variables IN_ADDRS and OUT_ADDRS not set.")
 	}
 
-	tuple := &viproxy.Tuple{
-		InAddr:  parseAddr(rawInAddr),
-		OutAddr: parseAddr(rawOutAddr),
+	rawInAddrs, rawOutAddrs := strings.Split(inEnv, ","), strings.Split(outEnv, ",")
+	if len(rawInAddrs) != len(rawOutAddrs) {
+		log.Fatal("IN_ADDRS and OUT_ADDRS must contain same number of addresses.")
 	}
-	p := viproxy.NewVIProxy([]*viproxy.Tuple{tuple})
-	p.Start()
+
+	var tuples []*viproxy.Tuple
+	for i := range rawInAddrs {
+		inAddr := parseAddr(rawInAddrs[i])
+		outAddr := parseAddr(rawOutAddrs[i])
+		tuples = append(tuples, &viproxy.Tuple{InAddr: inAddr, OutAddr: outAddr})
+	}
+
+	p := viproxy.NewVIProxy(tuples)
+	if err := p.Start(); err != nil {
+		log.Fatalf("Failed to start VIProxy: %s", err)
+	}
 	<-make(chan bool)
 }
