@@ -14,7 +14,7 @@ import (
 	"github.com/mdlayher/vsock"
 )
 
-var l = log.New(os.Stderr, "", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
+var l = log.New(os.Stderr, "viproxy: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
 
 // Tuple contains two addresses; one to listen on for incoming TCP connections,
 // and another one to forward TCP data to.
