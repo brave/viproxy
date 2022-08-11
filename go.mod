@@ -1,4 +1,4 @@
-module github.com/brave-experiments/viproxy
+module github.com/brave/viproxy
 
 go 1.17
 
