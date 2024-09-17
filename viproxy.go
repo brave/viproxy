@@ -4,6 +4,7 @@
 package viproxy
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -56,6 +57,10 @@ func dial(addr net.Addr) (net.Conn, error) {
 		conn, err = vsock.Dial(a.ContextID, a.Port, nil)
 	case *net.TCPAddr:
 		conn, err = net.DialTCP("tcp", nil, a)
+	case *net.UnixAddr:
+		conn, err = net.DialUnix(addr.Network(), nil, a)
+	default:
+		return nil, fmt.Errorf("unsupported address type %T", addr)
 	}
 	if err != nil {
 		return nil, err
@@ -73,6 +78,10 @@ func listen(addr net.Addr) (net.Listener, error) {
 		ln, err = vsock.ListenContextID(a.ContextID, a.Port, nil)
 	case *net.TCPAddr:
 		ln, err = net.ListenTCP(a.Network(), a)
+	case *net.UnixAddr:
+		ln, err = net.ListenUnix(addr.Network(), a)
+	default:
+		return nil, fmt.Errorf("unsupported address type %T", addr)
 	}
 	if err != nil {
 		return nil, err
